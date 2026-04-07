@@ -1,0 +1,57 @@
+Guidelines:
+I want this to be a git enabled project
+This is a new project, all source code should be under ./src and all test code should be under ./test
+This should be a collection of dockerized containers that interface with eachother and are controlled by a docker-compose, but should be capable of running under kubernetes.
+All supporting files should either be at the root or under appropriately named directories (ie. ./docs)
+I want comprehensive documentation, both on what the application does and how to use it
+I want Well written code that is maintainable and follows best practices
+I want Well written and comprehensive unit tests
+I want UI based tests
+I want Component tests that verify the application as a whole
+The language it is written in is not important, but I want it to be as fast as possible, so choose a language using that as a main criteria
+
+Process for Completing this:
+Phase 1: Plan the project
+Phase 2: Follow through on the plan, be sure to handle unit tests by following TDD
+Phase 3: Verify, run unit tests, run component tests, run any UI based tests
+Phase 4: Compile supplemental documentation and instructions
+Phase 5: Create the release pipeline, including versioning, test, and compile/release process, keep in mind the various platforms to support
+
+Project Details:
+This is meant to be an all encompasing build pipeline for applications.  For the purposes of this project it will start as a docker-compose managed system, but the goal is for it to be able to be adapted to run under kubernetes with auto-scaling in mind.
+The goal is to have a "microservice" node based architecture with the below nodes, each node should be multi-node scalable:
+- UI node.  Always running (if app is available) and displays progress/status/stages/etc.
+- Orchestrator node. Handles the interfacing and calls between nodes. hosts the external APIs. Keeps track of everything. Always running
+- File node.  This is meant to be a "cache" of sorts, at the launch of the pipeline this will download the source files and be the home of any file operations.  Always Running
+- Build node.  This is meant to be where building and language based testing occurs.  There may need to be multiple dockerfiles to manage different language capabilities. This one should begin spinning up immediately but shouldn't be long living.
+- Test node.  This should be able to handle whatever non-language based testing occurs, think UI tests, API/Contract tests, Performance tests (will work in conjunction with the deploy node to ensure env is up first). This one should begin spinning up immediately but shouldn't be long living.
+- Deploy node.  This is meant to deploy to any environment defined.  Should be able to intelligently decide if user is using any of the common IAC interfaces and what cloud provider is selected. This one should begin spinning up once the testing phase is done and spin down after.
+- Validate node.  This is meant to be a "shift left" node, it should validate that the inputs and any build/test/deploy criteria is met and valid prior to beginning even the build step. Should operate off a boolean flag on whether to connect to cloud providers to determine if pre-reqs are met there (ie, is VPC available for a deploy to connect under).  This one should always be running.
+- Database.  The only non-multi-node one. Doesn't have to be a compute db, but should be another containerized location to hold all logs and "historical" status.  Always running
+
+Supported items.  These should be configured in a way where it's easy to expand to additional languages/IAC/Clouds
+- Languages to support - Choose the 6 most popular programming languages (Java, Python, TS/JS, Rust, then 2 more)
+- IaC providers to support - Terraform, Helm, Ansible, etc
+- Cloud providers to support - AWS, GCP, Azure.
+
+Orchestrator details.
+- When the kickoff API is called, it should return immediately with a 200 if the kickoff process is initiated.
+- It should use a queue system to keep track of builds and their status, once an appropriate node is ready, it should take it from the queue and hand it off. Once a node is done and replies to the Orchestrator for that stage, it should appropriately update the UI, and place the "build" on a queue for the next stage.
+- Handles all inter-node communication. Nodes should only talk to the Orchestrator or the File node(s)
+- Stores all information to the Database. Retrieves "completed" data from the database.
+- Inbound API call will:
+- - include Github Org & Repo, along with commit information.
+- - be able to be initiated and report status back to Gitub CI process
+- Should "maintain" node hold.  If there are 3 file nodes, it should be sticky to the first one it gets, same process applies to the other nodes.
+- Should keep 10 builds worth of material data (files, artifacts, queue messages), this will allow any build within the previous 10 to be "initiated" at any stage.
+- Should handle any credentials/secure store in conjunction with the UI.  Will need to encrypt and store them in their own table on the DB. User must be "admin" level to add/update.
+
+UI details.
+- Communicates through the orchestrator to get any information.  Does not need to talk to any other node directly.
+- Should organize builds by Github Org and Repo.  Then individual builds are numbered sequentially.  If version information and commit information is available, tag it to the build number.
+- Should display each stage in-order, if for some reason a stage is skipped, it should still display it, just don't include progress.
+- Should display an estimated time remaining for each stage based on historical data. More recent builds are better indicators.
+- Should allow a user to "kick off" a build of their own.  Will use last commit information to ensure that code is what is expected.
+- Should allow a user to kick off a build at a specific stage as long as it has the necessary information/data available.
+- Should have a credential page to enter secure strings.
+- Should have User login page and any relevant fields related to that.
