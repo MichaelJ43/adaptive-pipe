@@ -30,11 +30,21 @@ This document describes the microservice-style **nodes** of adaptive-pipe, how t
 
 - **UI** talks only to the **Orchestrator** (REST/JSON; WebSocket or SSE may be added later for live updates).
 - **GitHub** talks to the **Orchestrator** webhook and HTTP APIs (**github.com** MVP).
-- **Build, Test, Deploy** workers report completion and stream logs through the **Orchestrator**; they read and write workspace content via the **File** node (or orchestrator-issued paths/tokens) but do not call each other directly.
+- **Build, Test, Deploy** workers report **completion and log metadata** through the **Orchestrator**; they read and write workspace content via the **File** node (or orchestrator-issued paths/tokens) but do not call each other directly. **Log bytes** should not all flow through the Orchestrator long-term (see *Orchestrator and log throughput* below).
 - **Validate** and **File** services are invoked by the **Orchestrator**; they do not initiate cross-worker calls to Build/Test/Deploy.
 - **Orchestrator** is the only component that writes authoritative run state to the **Database** (workers send results to the orchestrator).
 
 These rules keep the graph simple for security, observability, and Kubernetes network policies. See [SECURITY-AND-OPERATIONS.md](SECURITY-AND-OPERATIONS.md) for threat model and rate limiting.
+
+### Orchestrator and log throughput (risk)
+
+Routing **every** log byte through the Orchestrator can create a **CPU and network hotspot** when many builds run concurrently. Mitigations to adopt in Phase 2 or as load grows:
+
+- **Preferred**: Workers append logs to **segments on the File node** (or future object store) using orchestrator-issued upload URLs or File API; the Orchestrator records only **pointers, offsets, and completion** in Postgres. The UI still reads via Orchestrator, which fetches or redirects to the stored segments.
+- **Alternative**: Workers ship logs to a **shared log pipeline** (for example OpenTelemetry → collector → Loki/Elastic) keyed by `tenant_id` / `run_id`; Orchestrator stores query handles or links.
+- **Operational**: **Horizontally scale** Orchestrator replicas behind a load balancer; keep handlers **non-blocking** for I/O; cap inline log body size in any “proxied” path.
+
+Authoritative **state transitions** remain Orchestrator-owned; only the **data plane** for large payloads is offloaded.
 
 ## High-level topology
 
@@ -83,7 +93,18 @@ flowchart LR
 
 ## Sticky node hold
 
-- For pools with multiple instances (File, and similarly Build/Test/Deploy if modeled as named pools), once a run is assigned an instance for a given role, **subsequent steps for that run use the same instance** unless it becomes unhealthy and the Orchestrator performs a controlled reassignment (document failure behavior in Phase 2).
+- For pools with multiple instances (File, and similarly Build/Test/Deploy if modeled as named pools), once a run is assigned an instance for a given role, **subsequent steps for that run use the same instance** unless it becomes unhealthy and the Orchestrator performs a **controlled reassignment**.
+
+### Sticky File node failure (risk)
+
+If the assigned **File** node dies mid-run, artifacts and source trees on its **local volume** may be unreachable. Implementation should:
+
+1. **Detect** loss of heartbeat or failed RPC from the File node; mark the run (or file-affinity segment) as **needing rehydration** rather than guessing partial state.  
+2. **Reassign** the run to a healthy File node and **re-download** sources for the known `commit_sha` (and rebuild or re-copy artifacts **only** for stages not yet completed successfully, per run state).  
+3. **Update** Postgres: new `file_node_id`, clear or supersede stale blob paths that pointed at the dead node; ensure **no stage is marked succeeded** on the basis of data that was not verified on the new node.  
+4. **Optional hardening**: periodic **checkpoint** of critical artifacts to a second location (future object store) so reassignment is copy-not-redownload where safe.
+
+This logic must stay **idempotent** so retries after a crash do not double-apply deploys or corrupt caches.
 
 ## Docker Compose vs Kubernetes
 
@@ -95,3 +116,12 @@ flowchart LR
 
 - Full automatic IaC/cloud detection (post-MVP; feature-flagged per [SECURITY-AND-OPERATIONS.md](SECURITY-AND-OPERATIONS.md)).
 - Non-AWS deploy paths in MVP (designed as add-ons).
+
+## Phase 2 implementation risks (summary)
+
+| Risk | Where detailed | Mitigation direction |
+|------|----------------|----------------------|
+| Orchestrator overloaded by log traffic | [above](#orchestrator-and-log-throughput-risk) | Log segments on File / object store or shared log stack; scale Orchestrator |
+| File node crash breaks sticky affinity | [Sticky File node failure](#sticky-file-node-failure-risk) | Reassign, rehydrate sources, fix DB paths, idempotent retries |
+| GC leaves orphans or dangling rows | [DATA-AND-API.md](DATA-AND-API.md) (retention GC) | Ordered two-phase GC, tenant/repo locks, reconciliation job |
+| Contract bugs surface only in Phase 3 | [ROADMAP.md](ROADMAP.md) (Phase 2 integration) | Strong Orchestrator + DB + Redis + Validate/File integration tests in Phase 2 |

@@ -1,0 +1,9 @@
+.git
+.github
+docs
+test
+**/node_modules
+**/dist
+bin
+*.md
+!deploy/nginx-ui.conf

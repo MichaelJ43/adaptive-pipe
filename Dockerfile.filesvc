@@ -1,0 +1,14 @@
+# syntax=docker/dockerfile:1
+FROM golang:1.22-alpine AS build
+WORKDIR /src
+COPY src/go.mod src/go.sum ./
+RUN go mod download
+COPY src/ ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/filesvc ./cmd/filesvc
+
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates
+COPY --from=build /out/filesvc /usr/local/bin/filesvc
+# Runs as root so /data volume from docker-compose is writable (MVP).
+EXPOSE 8082
+ENTRYPOINT ["/usr/local/bin/filesvc"]

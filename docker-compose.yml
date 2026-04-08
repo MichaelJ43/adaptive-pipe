@@ -1,0 +1,90 @@
+# Adaptive Pipe — local full stack (SaaS control plane MVP)
+# Usage: docker compose up --build
+# UI: http://localhost:3000  Orchestrator: http://localhost:8080
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ap
+      POSTGRES_PASSWORD: ap
+      POSTGRES_DB: adaptivepipe
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ap -d adaptivepipe"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  validate:
+    build:
+      context: .
+      dockerfile: Dockerfile.validate
+    ports:
+      - "8081:8081"
+    environment:
+      LISTEN_ADDR: ":8081"
+
+  filesvc:
+    build:
+      context: .
+      dockerfile: Dockerfile.filesvc
+    ports:
+      - "8082:8082"
+    environment:
+      LISTEN_ADDR: ":8082"
+      FILE_NODE_ID: file-1
+      FILE_DATA_DIR: /data
+    volumes:
+      - filedata:/data
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.orchestrator
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      validate:
+        condition: service_started
+      filesvc:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://ap:ap@postgres:5432/adaptivepipe?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      VALIDATE_URL: http://validate:8081
+      FILE_URL: http://filesvc:8082
+      JWT_SECRET: ${JWT_SECRET:-dev-change-me-in-real-deploys}
+      LISTEN_ADDR: ":8080"
+    ports:
+      - "8080:8080"
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+      args:
+        VITE_API_BASE: ""
+    depends_on:
+      - orchestrator
+    ports:
+      - "3000:80"
+
+volumes:
+  pgdata:
+  filedata:

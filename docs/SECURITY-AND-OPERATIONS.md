@@ -12,6 +12,7 @@ Cross-cutting requirements agreed for adaptive-pipe. Implementation detail lands
 
 ## Observability
 
+- **Log volume**: Avoid funneling full build logs through the Orchestrator process at scale; prefer **segmented storage** on the File layer or a shared log backend so the control plane stays within CPU/network budget (see [ARCHITECTURE.md](ARCHITECTURE.md)).
 - **Structured logs**: Include `tenant_id`, `run_id`, `build_number`, `stage`, and `github_org` / `github_repo` where applicable. Use a stable JSON field naming convention.
 - **Correlation**: Propagate a **request or trace id** from the Orchestrator into worker logs (headers or job env) so a single run can be traced across containers.
 - **OpenTelemetry** (optional in MVP, easy to add): trace spans around kickoff, queue publish/consume, and stage boundaries.

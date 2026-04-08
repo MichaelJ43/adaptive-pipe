@@ -33,7 +33,7 @@ This document captures **conceptual** entities, retention rules, and API behavio
 
 ### Logs and history
 
-- Log bodies may be **chunks in DB** (small) or **object references** (File node; future: object storage) for large streams; Phase 2 chooses based on volume.  
+- Log bodies may be **chunks in DB** (small) or **object references** (File node; future: object storage) for large streams; Phase 2 chooses based on volume. For high concurrency, **prefer references / segments on the File layer** so the Orchestrator is not a log proxy (see [ARCHITECTURE.md](ARCHITECTURE.md)).  
 - Historical queries for “completed” runs read from the DB (and blob refs if used).
 
 ### Credentials
@@ -66,6 +66,22 @@ Product requirement: retain enough **material** so any of the **last 10 builds**
   - Artifact references from build.  
   - Queue-related tokens or messages needed to resume (if any).  
 - Older runs: material may be **garbage-collected**; long-term DB retention for analytics is a separate policy (see [CALLOUTS.md](../CALLOUTS.md) optional follow-ups).
+
+### Garbage collection (11th-and-older material) — risk and pattern
+
+Dropping material for builds **outside** the last 10 per `(tenant_id, org, repo)` must avoid **orphan files** on File nodes and **dangling references** in Postgres.
+
+**Recommended approach (Phase 2):**
+
+1. **Selection**: Compute the set of `run_id`s (or build numbers) that **remain** in the retention window vs those **eligible for purge** for a given repo. Do not purge any run that is **still active** (queued/running).  
+2. **Serialize per scope**: Run GC jobs **per** `(tenant_id, github_org, github_repo)` (or shard) with a **lock** or lease so two workers never purge the same repo concurrently.  
+3. **Two-phase delete**:  
+   - **Phase A (metadata)**: Mark eligible runs as `material_purged` (or delete child rows in a transaction) only after File delete succeeds **or** after recording File paths to delete in an **outbox** table consumed by a File janitor.  
+   - **Phase B (files)**: File service deletes paths **listed** for that purge; on success, finalize DB state; on failure, **retry** janitor and surface alerts for stuck paths.  
+4. **Reconciliation**: Periodic job compares File disk usage or listings against DB references and removes **unreferenced** blobs (with a grace period) to catch partial failures.  
+5. **Queue/Redis**: Ensure messages or tokens tied to purged runs are **acked/removed** or expired so old work cannot be claimed after material is gone.
+
+Exact ordering (DB-first vs file-first) should favor **no user-visible reference to deleted bytes**: either delete files first then DB, or tombstone in DB then delete files and clear tombstone—pick one ordering and test both crash mid-flight.
 
 ## Orchestrator: kickoff
 
