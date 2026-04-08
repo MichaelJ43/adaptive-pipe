@@ -14,7 +14,7 @@ adaptive-pipe/
   README.md            # Quick start and pointers to docs/
   .gitignore
   project_prompt.txt   # Original product requirements
-  CALLOUTS.md          # Open decisions and review notes
+  CALLOUTS.md          # Short clarifications and optional follow-ups
 ```
 
 Supporting files that are not source (lint config, CI workflow definitions, `Makefile`, etc.) live at the **root** or under **named directories** (for example `.github/workflows/`, `deploy/`).
@@ -83,5 +83,5 @@ Or Helm chart under `deploy/helm/adaptive-pipe/`. The same container images buil
 
 ## Documentation
 
-- **Planning / architecture**: `docs/` (this set).  
+- **Planning / architecture**: `docs/` (this set), including [SECURITY-AND-OPERATIONS.md](SECURITY-AND-OPERATIONS.md).  
 - **End-user runbooks**: expand in Phase 4 per [ROADMAP.md](ROADMAP.md).

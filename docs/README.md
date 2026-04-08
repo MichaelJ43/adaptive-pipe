@@ -6,28 +6,31 @@ Planning and technical reference for **adaptive-pipe**, an all-encompassing, con
 
 **What it does**
 
-- Accepts pipeline runs (for example from GitHub CI or the web UI) keyed by organization, repository, and commit.
+- **Multi-tenant SaaS**: many customers on one installation, isolated by **`tenant_id`**. Accepts pipeline runs from **GitHub.com** (commit webhook **MVP**) or the web UI, keyed by tenant, organization, repository, and commit.
 - Moves each run through ordered stages: validate, file fetch/cache, build, test, deploy—with state persisted for history, logs, and dashboards.
-- Keeps ephemeral compute (build, test, deploy) separate from long-lived control-plane services (orchestrator, validate, file nodes, UI, database).
-- Targets extensible support for multiple programming languages, IaC tools, and cloud providers via configuration and pluggable worker images.
+- Uses **Redis** for queues, **PostgreSQL** (containerized **MVP**) for authoritative state, and **REST/JSON** between services.
+- **MVP deploy path**: **AWS** with **Terraform**; **Helm, Ansible, GCP, and Azure** are future extensions via config and worker images.
+- **Six build languages**: Java, Python, TypeScript/JavaScript, Rust, Go, C#.
+- **Warm pools** for Build/Test/Deploy are configurable from **platform settings** in the UI; **scale-from-zero** applies when pool size is zero.
 
 **Who uses it**
 
-- **Developers and release engineers** monitoring runs and stages, kicking off builds, and managing credentials (admin).
-- **External automation** (for example GitHub Actions) calling the orchestrator APIs and receiving status back.
+- **Developers and release engineers** monitoring runs and stages, kicking off builds, tuning warm pools, and managing credentials (admin).
+- **GitHub** automation receiving run status via an implementation-chosen Checks/Status API (documented at release).
 
 ## Document index
 
 | Document | Description |
 |----------|-------------|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Services, communication rules, lifecycle, kickoff flow, Kubernetes notes |
-| [TECH-STACK.md](TECH-STACK.md) | Languages, runtimes, queue, database, APIs |
-| [DATA-AND-API.md](DATA-AND-API.md) | Data model sketch, retention, orchestrator and GitHub-oriented contracts |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Services, comms, warm pools, sticky affinity, Compose/K8s |
+| [TECH-STACK.md](TECH-STACK.md) | Languages, Redis, Postgres MVP, REST, AWS+Terraform MVP |
+| [DATA-AND-API.md](DATA-AND-API.md) | Data model, retention (10 per org/repo), kickoff 2xx/200, GitHub |
+| [SECURITY-AND-OPERATIONS.md](SECURITY-AND-OPERATIONS.md) | Threat model, logging, idempotency, rate limits, flags, backups |
 | [REPO-LAYOUT.md](REPO-LAYOUT.md) | Source and test layout, Compose, future K8s layout |
 | [ROADMAP.md](ROADMAP.md) | Phases 2–5 milestones and MVP vs deferred scope |
 
-Project-wide prompts and callouts live at the repository root: `project_prompt.txt` and [CALLOUTS.md](../CALLOUTS.md).
+Repository root: `project_prompt.txt` (authoritative product text) and [CALLOUTS.md](../CALLOUTS.md) (short clarifications and optional follow-ups).
 
 ## Phase 1 status
 
-Phase 1 (planning) is satisfied by the documents above. Implementation, testing, user guides, and release automation follow in Phases 2–5 per [ROADMAP.md](ROADMAP.md).
+Phase 1 (planning) is satisfied by the documents above. Implementation follows Phases 2–5 per [ROADMAP.md](ROADMAP.md).

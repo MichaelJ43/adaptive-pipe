@@ -1,58 +1,64 @@
 # Roadmap: Phases 2–5
 
-Maps the process in `project_prompt.txt` to concrete outcomes. Phase 1 (planning) is complete once the `docs/` set and [CALLOUTS.md](../CALLOUTS.md) exist and decisions there are resolved for implementation.
+Maps the process in `project_prompt.txt` to concrete outcomes. Settled MVP vs future scope is defined there and in [TECH-STACK.md](TECH-STACK.md); optional notes remain in [CALLOUTS.md](../CALLOUTS.md).
 
 ## Phase 2: Implementation with TDD
 
-**Goal:** Minimal vertical slice that proves the architecture: Compose stack, real persistence, one happy-path pipeline, Orchestrator as the hub.
+**Goal:** Minimal vertical slice: Compose stack, Redis + container Postgres, Orchestrator as REST hub, **AWS + Terraform** deploy path stub or happy path, **github.com** webhook, local File volumes.
 
 Suggested milestones:
 
 1. **Repository bootstrap** — `src/`, `test/`, root `docker-compose.yml`, PostgreSQL + Redis, `.gitignore`, root `README.md` stub.  
-2. **Orchestrator core (TDD first)** — domain types for `run` and `stage`, kickoff API returning **200** with `run_id` / `build_number`, enqueue first stage, persist to DB.  
-3. **Validate + File stubs** — Orchestrator calls Validate and File services (can return success with fixed delays initially).  
-4. **One Build language** — single Dockerfile (for example Python or Go) scheduled as ephemeral job; reports completion to Orchestrator.  
-5. **UI skeleton** — list builds by org/repo, detail page with ordered stages (static or mock ETAs OK).  
-6. **Auth placeholder** — login screen and role check hook; wire **admin** gate for credential API before storing real secrets.
+2. **Orchestrator core (TDD first)** — domain types for `run` and `stage`, kickoff API returning **200 OK** (or other agreed 2xx) with `run_id` / `build_number`, enqueue first stage, persist to DB, **idempotent** webhook handling.  
+3. **Validate + File stubs** — REST calls from Orchestrator; File uses **local volume** MVP.  
+4. **Build** — at least **one** language image end-to-end (expand toward all six incrementally).  
+5. **Test + Deploy workers** — Test worker stub; Deploy worker with **Terraform/AWS** MVP.  
+6. **UI skeleton** — org/repo lists, build detail with stages, **simple moving average** ETAs (pluggable function).  
+7. **Platform settings** — persist **warm pool** sizes for Build/Test/Deploy; Orchestrator respects targets (best-effort in Compose).  
+8. **Auth** — **local username/password** MVP with **tenant membership**; hooks for future OIDC/SSO. **Tenant admin** gate for credentials. **Tenant isolation** tests (no cross-tenant reads) from day one.
 
-Defer: full six languages, all clouds, intelligent IaC detection, performance tests.
+**Explicitly easy to extend later:** Helm and Ansible worker images, GCP/Azure credentials, GitHub Enterprise base URL, object storage for File, external Postgres—without redesigning the orchestration model.
 
 ## Phase 3: Verification and test pyramid
 
-**Goal:** Confidence via automated tests as requested: unit, component, UI.
+**Goal:** Unit, integration, component, and UI tests as required by the product prompt.
 
-- Run **unit** tests in CI and locally.  
-- **Integration** tests: Orchestrator + DB + Redis + one worker image.  
-- **Component** tests: full Compose stack, API-level or thin UI checks for end-to-end run creation.  
-- **UI** tests: Playwright/Cypress against staging stack; cover kickoff flow and stage display (skipped vs active).
+- **Unit** and **integration** (Orchestrator + DB + Redis + workers).  
+- **Component**: full Compose stack, end-to-end run from webhook or API.  
+- **UI**: Playwright/Cypress; cover warm pool settings, kickoff, skipped stages.
 
-Add coverage for GitHub webhook/idempotency and failure paths (Validate fail, Build fail).
+Add coverage for retention/GC rules (**10 builds per org/repo**, any status) and sticky File affinity failures.
 
 ## Phase 4: Supplemental documentation
 
-**Goal:** “What it does” and “how to use it” for operators and developers.
+**Goal:** Operator and developer “how to run and extend.”
 
-- Installation and configuration (environment variables, secrets, GitHub App setup).  
-- How to add a **language** image and register it in config.  
-- How to add a **cloud** or **IaC** target post-MVP.  
-- Troubleshooting (queue backlog, sticky File node loss, credential rotation).
+- GitHub App/webhook setup (**github.com** MVP; note future on-prem).  
+- AWS/Terraform backend and credential model.  
+- How to add a **language** image or a **future** cloud/IaC target.  
+- Moving Postgres and File storage to **production-grade** external services.  
+- Troubleshooting: Redis backlog, warm pool tuning, webhook duplicates (idempotency).
 
 ## Phase 5: Release pipeline
 
 **Goal:** Versioning, build, test, and publish artifacts for multiple platforms.
 
 - Semantic versioning (tags + changelog).  
-- CI pipeline: lint, unit, integration, image build, optional push to registry.  
-- Release artifacts: container images for each service and worker flavors; document supported architectures (for example `linux/amd64`, `linux/arm64`).  
-- Optional: signed images, SBOM generation—add if required by your org.
+- CI: lint, unit, integration, image build, optional registry push.  
+- Document architectures (`linux/amd64`, `linux/arm64` as needed).  
+- Optional: signed images, SBOM—if your organization requires them.
 
-## MVP vs deferred (feature flags)
+## MVP vs deferred
 
-| MVP (Phase 2–3) | Deferred (post-MVP) |
-|-----------------|---------------------|
-| One cloud + one IaC path manually configured | “Intelligent” detection of IaC and cloud |
-| Commit Statuses **or** Checks (one chosen) | Full GitHub Enterprise parity |
-| Single Postgres instance | HA / read replicas |
-| ETA from simple moving average | ML or per-repo tuning |
+| MVP (Phase 2–3) | Deferred (designed as extensions) |
+|-----------------|-----------------------------------|
+| AWS + Terraform deploy | GCP, Azure; Helm, Ansible |
+| github.com + commit webhook | GitHub Enterprise / on-prem API URL |
+| Container Postgres + local File volumes | Managed/external DB; S3/GCS/Azure Blob |
+| Local username/password | OIDC, SSO, additional identity providers |
+| Redis queue | Same; interface allows swap if ever needed |
+| Simple moving average ETAs | Richer estimators; ML (if ever) |
+| Explicit config per environment | Automatic IaC/cloud detection (feature-flagged) |
+| Tenant-scoped Postgres + Redis keys/streams | Dedicated DB per enterprise customer (only if a future tier requires it) |
 
-Track deferred items in [CALLOUTS.md](../CALLOUTS.md) until promoted into scope.
+Performance testing in the Test node: start with **smoke** API/UI checks; add **k6** or full perf gates when prioritized.
