@@ -22,14 +22,15 @@ Planning and technical reference for **adaptive-pipe**, an all-encompassing, con
 
 | Document | Description |
 |----------|-------------|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Services, comms, warm pools, sticky affinity, Compose/K8s |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Services, comms, warm pools, sticky affinity, log/GC risks, Compose/K8s |
 | [TECH-STACK.md](TECH-STACK.md) | Languages, Redis, Postgres MVP, REST, AWS+Terraform MVP |
 | [DATA-AND-API.md](DATA-AND-API.md) | Data model, retention (10 per org/repo), kickoff 2xx/200, GitHub |
 | [SECURITY-AND-OPERATIONS.md](SECURITY-AND-OPERATIONS.md) | Threat model, logging, idempotency, rate limits, flags, backups |
 | [REPO-LAYOUT.md](REPO-LAYOUT.md) | Source and test layout, Compose, future K8s layout |
 | [ROADMAP.md](ROADMAP.md) | Phases 2–5 milestones and MVP vs deferred scope |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Layout, tests, tenancy, migrations for contributors |
 
-Repository root: `project_prompt.txt` (authoritative product text) and [CALLOUTS.md](../CALLOUTS.md) (short clarifications and optional follow-ups).
+Repository root: [`README.md`](../README.md) (live SaaS quick start), `project_prompt.txt`, and [CALLOUTS.md](../CALLOUTS.md).
 
 ## Phase 1 status
 

@@ -1,0 +1,33 @@
+# Go
+src/bin/
+*.exe
+*.test
+*.out
+vendor/
+
+# Node
+src/ui/node_modules/
+src/ui/dist/
+npm-debug.log*
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Env & secrets
+.env
+.env.local
+*.pem
+
+# Playwright
+test/ui/node_modules/
+test/ui/test-results/
+test/ui/playwright-report/
+test/ui/.cache/
+
+# Coverage
+coverage.out
+coverage.html

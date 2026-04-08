@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  go-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Verify module
+        working-directory: src
+        run: go mod verify
+      - name: Test
+        working-directory: src
+        run: go test ./... -count=1 -race
+
+  ui-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: src/ui/package-lock.json
+      - name: Install
+        working-directory: src/ui
+        run: npm ci 2>/dev/null || npm install
+      - name: Build
+        working-directory: src/ui
+        run: npm run build
+
+  compose-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose config
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: [go-unit, ui-build, compose-config]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start stack
+        run: docker compose up -d --build
+      - name: Wait for orchestrator
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8080/healthz >/dev/null; then
+              echo "orchestrator up"; exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs; exit 1
+      - name: Webhook smoke
+        run: |
+          curl -sf -X POST http://127.0.0.1:8080/api/v1/tenants/demo/webhooks/github \
+            -H "Content-Type: application/json" \
+            -H "X-GitHub-Delivery: ci-${{ github.run_id }}" \
+            -d '{"after":"deadbeef","repository":{"name":"widget","owner":{"login":"acme"}}}'
+      - name: UI reachable
+        run: curl -sf -o /dev/null http://127.0.0.1:3000/
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Integration tests (host talks to published ports)
+        working-directory: src
+        env:
+          INTEGRATION: "1"
+          DATABASE_URL: postgres://ap:ap@127.0.0.1:5432/adaptivepipe?sslmode=disable
+          REDIS_URL: redis://127.0.0.1:6379
+          VALIDATE_URL: http://127.0.0.1:8081
+          FILE_URL: http://127.0.0.1:8082
+          JWT_SECRET: ci-test-secret
+        run: go test -tags=integration ./integration/... -count=1 -v
+      - name: Playwright E2E
+        working-directory: src/ui
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+        run: |
+          npm ci 2>/dev/null || npm install
+          npx playwright install --with-deps chromium
+          npm run test:e2e

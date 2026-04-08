@@ -17,17 +17,19 @@ Suggested milestones:
 7. **Platform settings** — persist **warm pool** sizes for Build/Test/Deploy; Orchestrator respects targets (best-effort in Compose).  
 8. **Auth** — **local username/password** MVP with **tenant membership**; hooks for future OIDC/SSO. **Tenant admin** gate for credentials. **Tenant isolation** tests (no cross-tenant reads) from day one.
 
+9. **Integration tests (Phase 2 gate)** — Before treating Phase 2 as “done,” maintain **automated integration tests** that run **Orchestrator + Postgres + Redis** together with **real HTTP** (or black-box) calls to **Validate and File** stubs or minimal implementations. Cover: enqueue/dequeue semantics, idempotent webhook handling, **tenant scoping** on queries, and **failure injection** (for example File 500, Redis timeout). Goal: catch **inter-service contract and wiring bugs** early, since full component/UI coverage waits until Phase 3.
+
 **Explicitly easy to extend later:** Helm and Ansible worker images, GCP/Azure credentials, GitHub Enterprise base URL, object storage for File, external Postgres—without redesigning the orchestration model.
 
 ## Phase 3: Verification and test pyramid
 
 **Goal:** Unit, integration, component, and UI tests as required by the product prompt.
 
-- **Unit** and **integration** (Orchestrator + DB + Redis + workers).  
+- **Unit** and broader **integration** (full stack paths not yet covered in Phase 2).  
 - **Component**: full Compose stack, end-to-end run from webhook or API.  
 - **UI**: Playwright/Cypress; cover warm pool settings, kickoff, skipped stages.
 
-Add coverage for retention/GC rules (**10 builds per org/repo**, any status) and sticky File affinity failures.
+Phase 3 **extends** Phase 2 integration coverage; it does not replace it. Add scenarios for **retention/GC** (**10 builds per tenant/org/repo**, any status), **sticky File affinity** and **reassignment**, and **log segment** behavior if logs bypass the Orchestrator body.
 
 ## Phase 4: Supplemental documentation
 
